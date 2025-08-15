@@ -4,16 +4,22 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Configuração do CORS para permitir acesso do seu frontend
+// Configurações básicas
 app.use(cors());
 app.use(express.json());
 
-// Rota para tradução (POST)
+// Variável de ambiente (configure no Render)
+const CHAVE_TRADUTOR = process.env.CHAVE_TRADUTOR; 
+
+if (!CHAVE_TRADUTOR) {
+  console.error('ERRO: Chave do tradutor não configurada!');
+  console.error('Adicione a variável CHAVE_TRADUTOR no Render.');
+  process.exit(1); // Encerra o servidor se a chave não existir
+}
+
+// Rota de tradução
 app.post('/traduzir', async (req, res) => {
   const { texto, idiomaAlvo } = req.body;
-
-  // SUA CHAVE DA MICROSOFT (substitua pela sua)
-  const CHAVE_TRADUTOR = process.env.CHAVE_TRADUTOR || 'SUA_CHAVE_AQUI';
 
   try {
     const resposta = await axios.post(
@@ -26,17 +32,31 @@ app.post('/traduzir', async (req, res) => {
         },
       }
     );
-    res.json({ tradução: resposta.data[0].translations[0].text });
+    res.json({ 
+      sucesso: true,
+      textoOriginal: texto,
+      textoTraduzido: resposta.data[0].translations[0].text 
+    });
+    
   } catch (erro) {
-    res.status(500).json({ erro: 'Falha na tradução' });
+    console.error('Erro na tradução:', erro.response?.data || erro.message);
+    res.status(500).json({ 
+      sucesso: false,
+      erro: 'Falha na tradução',
+      detalhes: erro.response?.data || null 
+    });
   }
 });
 
 // Rota de teste
 app.get('/', (req, res) => {
-  res.send('Servidor do Tradutor Funcionando!');
+  res.json({ 
+    status: 'Servidor operacional',
+    instrucao: 'Use POST /traduzir com { texto: "texto", idiomaAlvo: "en" }'
+  });
 });
 
+// Inicia o servidor
 app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`Servidor rodando em http://localhost:${PORT}`);
 });

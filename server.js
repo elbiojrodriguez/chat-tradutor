@@ -15,13 +15,11 @@ app.use(express.urlencoded({ extended: true }));
 
 // Enhanced secret loader with error handling
 const loadTranslationKey = () => {
-  // Try Environment Variable first
   if (process.env.CHAVE_TRADUTOR) {
     console.log('Using key from environment variable');
     return process.env.CHAVE_TRADUTOR;
   }
 
-  // Try Render Secret File
   try {
     const secretPath = path.join('/etc/secrets', 'CHAVE_TRADUTOR');
     if (fs.existsSync(secretPath)) {
@@ -32,9 +30,8 @@ const loadTranslationKey = () => {
     console.error('Error reading secret file:', error);
   }
 
-  // Final fallback (not recommended for production)
   if (process.env.NODE_ENV === 'development') {
-    const devKey = 'your-dev-key-here'; // Only for local testing
+    const devKey = 'your-dev-key-here';
     console.warn('Using development key!');
     return devKey;
   }
@@ -71,9 +68,10 @@ app.post('/translate', async (req, res) => {
       {
         headers: {
           'Ocp-Apim-Subscription-Key': TRANSLATION_KEY,
-          'Content-Type': 'application/json',
+          'Ocp-Apim-Subscription-Region': 'eastus', // ✅ Região confirmada
+          'Content-Type': 'application/json'
         },
-        timeout: 5000 // 5 second timeout
+        timeout: 5000
       }
     );
 

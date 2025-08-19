@@ -80,7 +80,7 @@ app.post('/translate', async (req, res) => {
       {
         headers: {
           'Ocp-Apim-Subscription-Key': TRANSLATION_KEY,
-          'Ocp-Apim-Subscription-Region': 'eastus', // ✅ Região confirmada
+          'Ocp-Apim-Subscription-Region': 'eastus',
           'Content-Type': 'application/json'
         },
         timeout: 5000
@@ -113,11 +113,104 @@ app.post('/translate', async (req, res) => {
   }
 });
 
+// NOVA ROTA: Tradução em Lote Paralela
+app.post('/translate/batch', async (req, res) => {
+  const { texts, targetLang } = req.body;
+
+  // Validação dos dados de entrada
+  if (!texts || !Array.isArray(texts) || !targetLang) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing required fields: texts (array) and targetLang'
+    });
+  }
+
+  if (texts.length === 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'Texts array cannot be empty'
+    });
+  }
+
+  // Limite para evitar sobrecarga da API
+  const MAX_BATCH_SIZE = 25;
+  if (texts.length > MAX_BATCH_SIZE) {
+    return res.status(400).json({
+      success: false,
+      error: `Too many texts. Maximum allowed: ${MAX_BATCH_SIZE}`,
+      maxBatchSize: MAX_BATCH_SIZE
+    });
+  }
+
+  try {
+    // Criar array de promises para execução paralela
+    const translationPromises = texts.map((text, index) => 
+      axios.post(
+        `https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&to=${targetLang}`,
+        [{ text }],
+        {
+          headers: {
+            'Ocp-Apim-Subscription-Key': TRANSLATION_KEY,
+            'Ocp-Apim-Subscription-Region': 'eastus',
+            'Content-Type': 'application/json'
+          },
+          timeout: 10000 // Timeout maior para lote
+        }
+      )
+      .then(response => ({
+        success: true,
+        originalText: text,
+        translatedText: response.data[0].translations[0].text,
+        index: index
+      }))
+      .catch(error => ({
+        success: false,
+        originalText: text,
+        error: error.response?.data?.error?.message || error.message,
+        index: index,
+        statusCode: error.response?.status
+      }))
+    );
+
+    // Executar todas as traduções em paralelo
+    const results = await Promise.all(translationPromises);
+
+    // Estatísticas
+    const successfulTranslations = results.filter(r => r.success);
+    const failedTranslations = results.filter(r => !r.success);
+
+    res.json({
+      success: true,
+      results: results,
+      summary: {
+        total: results.length,
+        successful: successfulTranslations.length,
+        failed: failedTranslations.length,
+        successRate: (successfulTranslations.length / results.length * 100).toFixed(2) + '%'
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Batch translation error:', {
+      message: error.message,
+      stack: error.stack
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Batch translation processing failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 // Server start
 app.listen(PORT, () => {
   console.log(`Translation service running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`Key loaded: ${TRANSLATION_KEY ? 'Yes' : 'No'}`);
+  console.log(`✅ Batch translation endpoint available at /translate/batch`);
 });
 
 // Error handling

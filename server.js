@@ -87,8 +87,10 @@ app.post('/translate', async (req, res) => {
   }
 
   try {
+    const url = `https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&to=${targetLang}`;
+    
     const response = await axios.post(
-      `https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&to=${targetLang}`,
+      url,
       [{ text }],
       {
         headers: {
@@ -157,9 +159,11 @@ app.post('/translate/batch', async (req, res) => {
 
   try {
     // Criar array de promises para execução paralela
-    const translationPromises = texts.map((text, index) => 
-      axios.post(
-        `https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&to=${targetLang}`,
+    const translationPromises = texts.map((text, index) => {
+      const url = `https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&to=${targetLang}`;
+      
+      return axios.post(
+        url,
         [{ text }],
         {
           headers: {
@@ -183,7 +187,7 @@ app.post('/translate/batch', async (req, res) => {
         index: index,
         statusCode: error.response?.status
       }))
-    );
+    });
 
     // Executar todas as traduções em paralelo
     const results = await Promise.all(translationPromises);

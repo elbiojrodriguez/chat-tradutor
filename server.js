@@ -1,3 +1,4 @@
+```javascript
 // Imports
 const axios = require('axios');
 const cors = require('cors');
@@ -43,6 +44,18 @@ const loadTranslationKey = () => {
 };
 
 const TRANSLATION_KEY = loadTranslationKey();
+
+const loadGoogleTTSKeyPath = () => {
+  const secretPath = path.join('/etc/secrets', 'CHAVE_GOOGLE_TTS');
+  if (fs.existsSync(secretPath)) {
+    console.log('✅ Chave do Google TTS encontrada');
+    return secretPath;
+  }
+  console.error('❌ Chave do Google TTS não encontrada');
+  return null;
+};
+
+const GOOGLE_TTS_KEY_PATH = loadGoogleTTSKeyPath();
 
 // Key validation
 if (!TRANSLATION_KEY) {
@@ -222,3 +235,4 @@ process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
   process.exit(1);
 });
+```

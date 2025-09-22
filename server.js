@@ -89,15 +89,22 @@ app.post('/translate', async (req, res) => {
 
 // Rota de geração de áudio
 app.post('/speak', async (req, res) => {
-  const { text, languageCode = 'fr-FR', gender = 'FEMALE' } = req.body;
-  if (!text) {
-    return res.status(400).json({ success: false, error: 'Campo obrigatório: text' });
+  const { text, languageCode } = req.body;
+
+  if (!text || !languageCode) {
+    return res.status(400).json({
+      success: false,
+      error: 'Campos obrigatórios: text e languageCode'
+    });
   }
 
   try {
     const request = {
       input: { text },
-      voice: { languageCode, ssmlGender: gender },
+      voice: {
+        languageCode: languageCode,
+        ssmlGender: 'FEMALE' // voz padrão feminina
+      },
       audioConfig: { audioEncoding: 'MP3' }
     };
 
@@ -106,7 +113,10 @@ app.post('/speak', async (req, res) => {
     res.send(response.audioContent);
   } catch (error) {
     console.error('Erro no Google TTS:', error.message);
-    res.status(500).json({ success: false, error: 'Falha ao gerar áudio' });
+    res.status(500).json({
+      success: false,
+      error: 'Falha ao gerar áudio'
+    });
   }
 });
 

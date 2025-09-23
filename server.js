@@ -90,9 +90,8 @@ app.post('/translate-and-speak', async (req, res) => {
     console.log('✅ Texto traduzido:', translatedText.substring(0, 50) + '...');
 
     // 2. ✅ GERAR ÁUDIO com Google TTS
-    const textoParaAudio = translatedText.trim().slice(0, 200);
     const ttsRequest = {
-      input: { text: textoParaAudio },
+      input: { text: translatedText },
       voice: {
         languageCode: targetLang,
         ssmlGender: 'FEMALE'
@@ -101,15 +100,13 @@ app.post('/translate-and-speak', async (req, res) => {
     };
 
     const [ttsResponse] = await googleTTSClient.synthesizeSpeech(ttsRequest);
-    
-    if (!ttsResponse.audioContent) throw new Error('Áudio vazio do Google TTS');
     console.log('✅ Áudio gerado:', ttsResponse.audioContent.length + ' bytes');
 
-    // 3. ✅ CONVERTER áudio para base64
+    // 3. ✅ CONVERTER áudio para base64 (transferível entre navegadores)
     const audioBase64 = ttsResponse.audioContent.toString('base64');
     const audioDataUrl = `data:audio/mpeg;base64,${audioBase64}`;
 
-    // 4. ✅ RETORNAR AMBOS
+    // 4. ✅ RETORNAR AMBOS (texto traduzido + áudio)
     res.json({
       success: true,
       originalText: text,
@@ -125,12 +122,12 @@ app.post('/translate-and-speak', async (req, res) => {
     console.error('❌ Erro no translate-and-speak:', error.message);
     res.status(500).json({ 
       success: false, 
-      error: 'Falha no processo completo' 
+      error: 'Falha no processo completo de tradução e áudio' 
     });
   }
 });
 
-// ✅ MANTIDO: Rota de tradução individual
+// ✅ MANTIDO: Rota de tradução individual (para compatibilidade)
 app.post('/translate', async (req, res) => {
   const { text, targetLang, sourceLang } = req.body;
   if (!text || !targetLang) {
@@ -162,7 +159,7 @@ app.post('/translate', async (req, res) => {
   }
 });
 
-// ✅ MANTIDO: Rota de áudio individual
+// ✅ MANTIDO: Rota de áudio individual (para compatibilidade)
 app.post('/speak', async (req, res) => {
   const { text, languageCode } = req.body;
 
@@ -198,4 +195,7 @@ app.post('/speak', async (req, res) => {
 // Iniciar servidor
 app.listen(PORT, () => {
   console.log(`🟢 Servidor rodando na porta ${PORT}`);
+  console.log(`🎯 Nova rota disponível: POST /translate-and-speak`);
+  console.log(`🔹 Rotas mantidas: POST /translate, POST /speak`);
+  console.log(`🔹 Health check: GET /health`);
 });

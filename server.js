@@ -61,15 +61,82 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Rota de tradução
+// ✅✅✅ NOVA ROTA: TRADUÇÃO + ÁUDIO (fluxo completo)
+app.post('/translate-and-speak', async (req, res) => {
+  const { text, sourceLang, targetLang } = req.body;
+  
+  if (!text || !targetLang) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Campos obrigatórios: text e targetLang' 
+    });
+  }
+
+  try {
+    console.log('🎯 Iniciando tradução + áudio:', { sourceLang, targetLang, text: text.substring(0, 50) + '...' });
+
+    // 1. ✅ TRADUZIR com Microsoft
+    const translateUrl = `https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from=${sourceLang || 'auto'}&to=${targetLang}`;
+    const translateResponse = await axios.post(translateUrl, [{ text }], {
+      headers: {
+        'Ocp-Apim-Subscription-Key': TRANSLATION_KEY,
+        'Ocp-Apim-Subscription-Region': 'eastus',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const translatedText = translateResponse.data[0]?.translations[0]?.text;
+    if (!translatedText) throw new Error('Tradução falhou');
+
+    console.log('✅ Texto traduzido:', translatedText.substring(0, 50) + '...');
+
+    // 2. ✅ GERAR ÁUDIO com Google TTS
+    const ttsRequest = {
+      input: { text: translatedText },
+      voice: {
+        languageCode: targetLang,
+        ssmlGender: 'FEMALE'
+      },
+      audioConfig: { audioEncoding: 'MP3' }
+    };
+
+    const [ttsResponse] = await googleTTSClient.synthesizeSpeech(ttsRequest);
+    console.log('✅ Áudio gerado:', ttsResponse.audioContent.length + ' bytes');
+
+    // 3. ✅ CONVERTER áudio para base64 (transferível entre navegadores)
+    const audioBase64 = ttsResponse.audioContent.toString('base64');
+    const audioDataUrl = `data:audio/mpeg;base64,${audioBase64}`;
+
+    // 4. ✅ RETORNAR AMBOS (texto traduzido + áudio)
+    res.json({
+      success: true,
+      originalText: text,
+      translatedText: translatedText,
+      audioData: audioDataUrl,
+      targetLanguage: targetLang,
+      sourceLanguage: sourceLang || 'auto'
+    });
+
+    console.log('✅ Pacote completo enviado para cliente');
+
+  } catch (error) {
+    console.error('❌ Erro no translate-and-speak:', error.message);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Falha no processo completo de tradução e áudio' 
+    });
+  }
+});
+
+// ✅ MANTIDO: Rota de tradução individual (para compatibilidade)
 app.post('/translate', async (req, res) => {
-  const { text, targetLang } = req.body;
+  const { text, targetLang, sourceLang } = req.body;
   if (!text || !targetLang) {
     return res.status(400).json({ success: false, error: 'Campos obrigatórios: text e targetLang' });
   }
 
   try {
-    const url = `https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&to=${targetLang}`;
+    const url = `https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from=${sourceLang || 'auto'}&to=${targetLang}`;
     const response = await axios.post(url, [{ text }], {
       headers: {
         'Ocp-Apim-Subscription-Key': TRANSLATION_KEY,
@@ -81,14 +148,19 @@ app.post('/translate', async (req, res) => {
     const translatedText = response.data[0]?.translations[0]?.text;
     if (!translatedText) throw new Error('Resposta inválida da Microsoft');
 
-    res.json({ success: true, originalText: text, translatedText, targetLanguage: targetLang });
+    res.json({ 
+      success: true, 
+      originalText: text, 
+      translatedText, 
+      targetLanguage: targetLang 
+    });
   } catch (error) {
     console.error('Erro na tradução:', error.message);
     res.status(500).json({ success: false, error: 'Falha na tradução' });
   }
 });
 
-// Rota de geração de áudio
+// ✅ MANTIDO: Rota de áudio individual (para compatibilidade)
 app.post('/speak', async (req, res) => {
   const { text, languageCode } = req.body;
 
@@ -104,7 +176,7 @@ app.post('/speak', async (req, res) => {
       input: { text },
       voice: {
         languageCode: languageCode,
-        ssmlGender: 'FEMALE' // voz padrão feminina
+        ssmlGender: 'FEMALE'
       },
       audioConfig: { audioEncoding: 'MP3' }
     };
@@ -124,4 +196,7 @@ app.post('/speak', async (req, res) => {
 // Iniciar servidor
 app.listen(PORT, () => {
   console.log(`🟢 Servidor rodando na porta ${PORT}`);
+  console.log(`🎯 Nova rota disponível: POST /translate-and-speak`);
+  console.log(`🔹 Rotas mantidas: POST /translate, POST /speak`);
+  console.log(`🔹 Health check: GET /health`);
 });

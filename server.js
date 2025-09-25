@@ -1,4 +1,3 @@
-
 // Imports
 const axios = require('axios');
 const cors = require('cors');
@@ -51,6 +50,19 @@ if (!TRANSLATION_KEY || !googleTTSClient) {
   process.exit(1);
 }
 
+// Função para normalizar códigos de idioma
+const normalizeLanguageCode = (lang) => {
+  const map = {
+    'en': 'en-US',
+    'pt': 'pt-BR',
+    'es': 'es-ES',
+    'fr': 'fr-FR',
+    'de': 'de-DE',
+    'it': 'it-IT'
+  };
+  return map[lang] || lang;
+};
+
 // Rota de saúde
 app.get('/health', (req, res) => {
   res.json({
@@ -61,21 +73,21 @@ app.get('/health', (req, res) => {
   });
 });
 
-// ✅✅✅ NOVA ROTA: TRADUÇÃO + ÁUDIO (fluxo completo)
+// ✅ Rota principal: tradução + áudio
 app.post('/translate-and-speak', async (req, res) => {
   const { text, sourceLang, targetLang } = req.body;
-  
+
   if (!text || !targetLang) {
-    return res.status(400).json({ 
-      success: false, 
-      error: 'Campos obrigatórios: text e targetLang' 
+    return res.status(400).json({
+      success: false,
+      error: 'Campos obrigatórios: text e targetLang'
     });
   }
 
   try {
     console.log('🎯 Iniciando tradução + áudio:', { sourceLang, targetLang, text: text.substring(0, 50) + '...' });
 
-    // 1. ✅ TRADUZIR com Microsoft
+    // 1. Tradução com Microsoft
     const translateUrl = `https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from=${sourceLang || 'auto'}&to=${targetLang}`;
     const translateResponse = await axios.post(translateUrl, [{ text }], {
       headers: {
@@ -90,11 +102,11 @@ app.post('/translate-and-speak', async (req, res) => {
 
     console.log('✅ Texto traduzido:', translatedText.substring(0, 50) + '...');
 
-    // 2. ✅ GERAR ÁUDIO com Google TTS
+    // 2. Geração de áudio com Google TTS
     const ttsRequest = {
       input: { text: translatedText },
       voice: {
-        languageCode: targetLang,
+        languageCode: normalizeLanguageCode(targetLang),
         ssmlGender: 'FEMALE'
       },
       audioConfig: { audioEncoding: 'MP3' }
@@ -103,11 +115,10 @@ app.post('/translate-and-speak', async (req, res) => {
     const [ttsResponse] = await googleTTSClient.synthesizeSpeech(ttsRequest);
     console.log('✅ Áudio gerado:', ttsResponse.audioContent.length + ' bytes');
 
-    // 3. ✅ CONVERTER áudio para base64 (transferível entre navegadores)
+    // 3. Retorno para o cliente
     const audioBase64 = ttsResponse.audioContent.toString('base64');
     const audioDataUrl = `data:audio/mpeg;base64,${audioBase64}`;
 
-    // 4. ✅ RETORNAR AMBOS (texto traduzido + áudio)
     res.json({
       success: true,
       originalText: text,
@@ -121,14 +132,14 @@ app.post('/translate-and-speak', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Erro no translate-and-speak:', error.message);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Falha no processo completo de tradução e áudio' 
+    res.status(500).json({
+      success: false,
+      error: 'Falha no processo completo de tradução e áudio'
     });
   }
 });
 
-// ✅ MANTIDO: Rota de tradução individual (para compatibilidade)
+// Rota de tradução individual
 app.post('/translate', async (req, res) => {
   const { text, targetLang, sourceLang } = req.body;
   if (!text || !targetLang) {
@@ -148,11 +159,11 @@ app.post('/translate', async (req, res) => {
     const translatedText = response.data[0]?.translations[0]?.text;
     if (!translatedText) throw new Error('Resposta inválida da Microsoft');
 
-    res.json({ 
-      success: true, 
-      originalText: text, 
-      translatedText, 
-      targetLanguage: targetLang 
+    res.json({
+      success: true,
+      originalText: text,
+      translatedText,
+      targetLanguage: targetLang
     });
   } catch (error) {
     console.error('Erro na tradução:', error.message);
@@ -160,7 +171,7 @@ app.post('/translate', async (req, res) => {
   }
 });
 
-// ✅ MANTIDO: Rota de áudio individual (para compatibilidade)
+// Rota de áudio individual
 app.post('/speak', async (req, res) => {
   const { text, languageCode } = req.body;
 
@@ -175,7 +186,7 @@ app.post('/speak', async (req, res) => {
     const request = {
       input: { text },
       voice: {
-        languageCode: languageCode,
+        languageCode: normalizeLanguageCode(languageCode),
         ssmlGender: 'FEMALE'
       },
       audioConfig: { audioEncoding: 'MP3' }
